@@ -23,13 +23,15 @@ public class MenuSection {
     private Server server;
 
     //Thread checker
-    private boolean serverThreadcheck;
+    private boolean serverThreadcheck = false;
 
     //========== MENU ==========
     private StackPane container;
     private VBox menuBox;
     private VBox topleftContainer;
     private String playerName;
+    private VBox playerListArea; // To hold the names dynamically
+    private Label statusLabel;
     private Label nameDisplay;// Default name
     private Stage stage;
 
@@ -116,7 +118,7 @@ public class MenuSection {
         Label musicLabel = sectionText("Intro by Nicholas Panek  ");
         Hyperlink pixabayLink = createLink(
                 "visit Profile",
-                "pixabay.com/users/nickpanek-38266323/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=318059"
+                "https://pixabay.com/users/nickpanek-38266323/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=318059"
         );
         musicWrap.getChildren().addAll(musicLabel, pixabayLink);
 
@@ -141,6 +143,7 @@ public class MenuSection {
 
         menuBox.getChildren().addAll(creditsTitle, card, btnBack);
     }
+
     private Label sectionTitle(String text) {
         Label label = new Label(text);
         label.setFont(Font.font("Verdana", FontWeight.BOLD, 14));
@@ -166,7 +169,7 @@ public class MenuSection {
 
 
     private void setUpProfileData(){
-        nameDisplay = new Label("ID "+ playerName + "  [EDIT]");
+        nameDisplay = new Label("ID: " + playerName + "  [EDIT]");
         nameDisplay.setTextFill(Color.web("#2ecc71"));
         nameDisplay.setFont(Font.font("Verdana", FontWeight.BOLD, 14));
         nameDisplay.setStyle("-fx-cursor: hand; -fx-background-color: rgba(255,255,255,0.1); -fx-padding: 10; -fx-background-radius: 5;");
@@ -221,16 +224,18 @@ public class MenuSection {
 
         btnConnect.setOnAction(e -> {
             String selected = serverList.getSelectionModel().getSelectedItem();
-            String host = selected.split(":")[1].trim();
-            // TRIGGER CLIENT LOGIC HERE
-            try{
-                Client client = new Client();
-                client.connect(host, GAME_PORT, playerName);
-                // Hide menu and show game
-                this.container.setVisible(false);
-            } catch (IOException ex) {
-                Logger.get().error("Failed to create a client");
-                throw new RuntimeException(ex);
+            if (selected != null && selected.contains(":")) {
+                String host = selected.split(":")[1].trim();
+                // TRIGGER CLIENT LOGIC HERE
+                try{
+                    Client client = new Client();
+                    client.connect(host, GAME_PORT, playerName);
+                    // Hide menu and show game
+                    this.container.setVisible(false);
+                } catch (IOException ex) {
+                    Logger.get().error("Failed to create a client");
+                    showErrorDialog("Connection Failed", "Could not connect to server: " + ex.getMessage());
+                }
             }
         });
 
@@ -255,45 +260,58 @@ public class MenuSection {
         playerLabel.setFont(Font.font("Verdana", FontWeight.BOLD, 15));
         Slider playerSlider = new Slider(3, 50, 20);
         playerSlider.setShowTickLabels(true);
+        playerSlider.setSnapToTicks(true);
+        playerSlider.setMajorTickUnit(10);
+        playerSlider.setMinorTickCount(5);
         playerSlider.valueProperty().addListener((obs, oldVal, newVal) ->
                 playerLabel.setText("Max Players: " + newVal.intValue()));
 
         Button btnLaunch = createMenuButton("LAUNCH SERVER");
         btnLaunch.setOnAction(e -> {
-            if(serverThreadcheck) return;
+            if(serverThreadcheck) {
+                showErrorDialog("Server Running", "A server is already running!");
+                return;
+            }
             try {
                 server = new Server();
                 server.configure((int)playerSlider.getValue(), 1);
 
                 Thread serverThread = new Thread(() -> {
-                   try {
-                       serverThreadcheck = true;
-                       server.start(GAME_PORT);
-                       Logger.get().info("Server Thread Started");
-                   } catch (IOException ex) {
-                       Logger.get().error("FAILED TO CREATE A SERVER PORT");
-                       ex.printStackTrace();
-                   }
+                    try {
+                        serverThreadcheck = true;
+                        server.start(GAME_PORT);
+                        Logger.get().info("Server Thread Started");
+                    } catch (IOException ex) {
+                        Logger.get().error("FAILED TO CREATE A SERVER PORT");
+                        ex.printStackTrace();
+                        serverThreadcheck = false;
+                    }
                 });
                 serverThread.setDaemon(true);
                 serverThread.start();
                 Thread.sleep(100);
                 joinLocalServer();
 
+            } catch (InterruptedException ex) {
+                serverThreadcheck = false;
+                Thread.currentThread().interrupt();
+                Logger.get().error("Server launch interrupted");
             } catch (Exception ex) {
                 serverThreadcheck = false;
-                throw new RuntimeException(ex);
+                Logger.get().error("Failed to launch server: " + ex.getMessage());
+                showErrorDialog("Server Error", "Failed to launch server: " + ex.getMessage());
             }
         });
 
         Button btnBack = createMenuButton("BACK");
         btnBack.setOnAction(e -> {
-                if(server != null)
-                {
-                    serverThreadcheck = false;
-                    server.closeServer();
-                }
-                showStartOptions();});
+            if(server != null)
+            {
+                serverThreadcheck = false;
+                server.closeServer();
+            }
+            showStartOptions();
+        });
 
         menuBox.getChildren().addAll(title, playerLabel, playerSlider, btnLaunch, btnBack);
 
@@ -306,8 +324,37 @@ public class MenuSection {
             Logger.get().info("SERVER USER SELF JOIN");
         } catch (Exception e) {
             Logger.get().warn("FAILED TO CONNECT THE SERVER AND HOST TOGETHER");
-            e.printStackTrace();
+            showErrorDialog("Connection Failed", "Could not connect to local server");
         }
+    }
+
+    private void showLobby(boolean isHost) {
+        menuBox.getChildren().clear();
+        topleftContainer.setVisible(false);
+
+        Label lobbyTitle = new Label("GAME LOBBY");
+        lobbyTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 30));
+        lobbyTitle.setTextFill(Color.web("#2ecc71"));
+
+        statusLabel = new Label("Waiting for players...");
+        statusLabel.setTextFill(Color.GRAY);
+
+        playerListArea = new VBox(10);
+        playerListArea.setAlignment(Pos.CENTER);
+        playerListArea.setPadding(new Insets(20));
+        playerListArea.setStyle("-fx-background-color: rgba(0,0,0,0.3); -fx-background-radius: 10;");
+
+        // This button only starts the game if min players are met
+        Button btnAction = createMenuButton(isHost ? "START MATCH" : "READY");
+        if (isHost) btnAction.setDisable(true);
+
+        Button btnLeave = createMenuButton("LEAVE");
+        btnLeave.setOnAction(e -> {
+            // Logic to disconnect client and return to main menu
+            resetToMainMenu();
+        });
+
+        menuBox.getChildren().addAll(lobbyTitle, statusLabel, playerListArea, btnAction, btnLeave);
     }
 
     private void resetToMainMenu(){
@@ -324,6 +371,7 @@ public class MenuSection {
         // Create the JavaFX Pop-up Dialog
         TextInputDialog dialog = new TextInputDialog(playerName);
         dialog.setTitle("Player Profile");
+        dialog.setHeaderText(null);
         dialog.setContentText("Enter Name: ");
 
         // Add custom styling
@@ -335,10 +383,18 @@ public class MenuSection {
             if(!name.trim().isEmpty())
             {
                 this.playerName = name;
-                this.nameDisplay.setText("ID: " + playerName + " [EDIT]");
+                this.nameDisplay.setText("ID: " + playerName + "  [EDIT]");
             }
         });
 
+    }
+
+    private void showErrorDialog(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
 
@@ -355,8 +411,22 @@ public class MenuSection {
                         "-fx-cursor: hand;"
         );
         // Hover Effect
-        btn.setOnMouseEntered(e -> btn.setStyle(btn.getStyle() + "-fx-background-color: #2ecc71;"));
-        btn.setOnMouseExited(e -> btn.setStyle(btn.getStyle().replace("-fx-background-color: #2ecc71;", "-fx-background-color: #34495e;")));
+        btn.setOnMouseEntered(e -> btn.setStyle(
+                "-fx-background-color: #2ecc71; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-size: 16px; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-background-radius: 5; " +
+                        "-fx-cursor: hand;"
+        ));
+        btn.setOnMouseExited(e -> btn.setStyle(
+                "-fx-background-color: #34495e; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-size: 16px; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-background-radius: 5; " +
+                        "-fx-cursor: hand;"
+        ));
 
         return btn;
     }

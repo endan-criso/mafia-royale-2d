@@ -7,5 +7,5 @@ public enum PacketType {
     PLAYER_STATE, //X, Y
     ATTACK_STATE,
     WORLD_STATE,
-    METRICS //latency
+    METRICS, //latency
     }

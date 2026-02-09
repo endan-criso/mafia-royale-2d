@@ -7,8 +7,6 @@
     <list default="true" id="ab18cc5c-b574-4a86-bbdc-011d8fcb6f79" name="Changes" comment="">
       <change afterPath="$PROJECT_DIR$/src/Networking/Client.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/Networking/Packet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/Networking/PacketType.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/Networking/Server.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/Render/PlayerState.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/assets/Character/Attack_1.png" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/assets/Character/Attack_2.png" afterDir="false" />
@@ -629,6 +627,8 @@
       <change afterPath="$PROJECT_DIR$/src/assets/tiles/texture_16px 97.png" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/assets/tiles/texture_16px 98.png" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/assets/tiles/texture_16px 99.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/Agent/Agent.class" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/Agent/Body.class" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/Agent/Emotion.class" beforeDir="false" />
@@ -644,6 +644,7 @@
       <change beforePath="$PROJECT_DIR$/out/production/World/World/CityBuilder$1.class" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/World/CityBuilder$Block.class" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/World/CityBuilder.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/out/production/World/World/LifeCycle.class" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/World/Tile$1.class" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/World/Tile.class" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/World/World/TileType.class" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/World/World/TileType.class" afterDir="false" />
@@ -657,6 +658,9 @@
       <change beforePath="$PROJECT_DIR$/src/Agent/Mind.java" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/Agent/Personality.java" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/Core/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Core/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Networking/PacketType.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Networking/PacketType.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Networking/Server.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Networking/Server.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Render/MenuSection.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Render/MenuSection.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/Transport/Car.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Transport/Car.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/Utils/SoundManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Utils/SoundManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/World/CityBuilder.java" beforeDir="false" />

@@ -34,7 +34,7 @@ public class Main extends Application {
         // Generate the map
         //WorldSection worldSection = new WorldSection(100, 100);
         Group root = new Group();
-        //root.getChildren().add(worldSection);
+        //root.getChildren().add();
 
         Player playerLogic = new Player(1, "Player1");
         playerLogic.setX(100); // Starting position
@@ -44,9 +44,9 @@ public class Main extends Application {
 
         // 4. Add the character's image to the screen
         // We get the ImageView from the PlayerView class you wrote
-        root.getChildren().add(playerView.getImageView());
+        //root.getChildren().add(playerView.getImageView());
 
-        Scene scene = new Scene(root);
+        Scene scene = new Scene(menu.getRoot());
         stage.setScene(scene);
         stage.show();
 
