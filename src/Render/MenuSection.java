@@ -3,6 +3,7 @@ package Render;
 import Logs.Logger;
 import Networking.Client;
 import Networking.Server;
+import Packet.LobbyPacket;
 import Player.Player;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -14,16 +15,21 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.util.Optional;
 
 public class MenuSection {
 
-    private javafx.application.HostServices hostServices;
-    private int GAME_PORT = 9893;
+    //NETWORKING
+    private final int DISCOVERY_PORT = 8888;
+    private int GAME_PORT = 9173;
     private Server server;
+    private javafx.application.HostServices hostServices;
 
     //Thread checker
     private boolean serverThreadcheck = false;
+    private boolean discoveryRunning = false;
 
     //========== MENU ==========
     private StackPane container;
@@ -180,7 +186,6 @@ public class MenuSection {
     }
 
     private void showStartOptions(){
-
         menuBox.getChildren().clear();
         topleftContainer.setVisible(true);
 
@@ -212,8 +217,9 @@ public class MenuSection {
         serverList.setMaxWidth(300);
         serverList.setMaxHeight(200);
 
-        // Add some fake servers for now so you can see it working
-        serverList.getItems().addAll("Localhost: 127.0.0.1", "Public Server: 192.168.1.5", "Jarvis Dev Room");
+        //START DISCOVERY HERE
+        discoveryRunning = true;
+        startCatchDiscoveryThread(serverList);
 
         Button btnConnect = createMenuButton("CONNECT");
         btnConnect.setDisable(true); // Disable until a server is picked
@@ -225,12 +231,15 @@ public class MenuSection {
         btnConnect.setOnAction(e -> {
             String selected = serverList.getSelectionModel().getSelectedItem();
             if (selected != null && selected.contains(":")) {
-                String host = selected.split(":")[1].trim();
+                String[] parts = selected.split(":");
+                String host = parts[0];
+                GAME_PORT = Integer.parseInt(parts[1]);
                 // TRIGGER CLIENT LOGIC HERE
                 try{
                     Client client = new Client();
                     client.connect(host, GAME_PORT, playerName);
                     // Hide menu and show game
+                    discoveryRunning = false;
                     this.container.setVisible(false);
                 } catch (IOException ex) {
                     Logger.get().error("Failed to create a client");
@@ -240,9 +249,50 @@ public class MenuSection {
         });
 
         Button btnBack = createMenuButton("BACK");
-        btnBack.setOnAction(e -> showStartOptions());
+        btnBack.setOnAction(e -> {
+            discoveryRunning = false;
+            showStartOptions();
+        });
 
         menuBox.getChildren().addAll(browserTitle, serverList, btnConnect, btnBack);
+    }
+
+    private void startCatchDiscoveryThread(ListView<String> serverList){
+        Thread discoverThread = new Thread(() -> {
+
+            try(DatagramSocket socket1 = new DatagramSocket(DISCOVERY_PORT)){
+                socket1.setBroadcast(true); // allow receiving broadcast
+                byte[] buffer = new byte[256];
+
+                while (discoveryRunning && !Thread.currentThread().isInterrupted())
+                {
+                    DatagramPacket pck = new DatagramPacket(buffer, buffer.length);
+                    socket1.receive(pck);
+
+                    String msg = new String(
+                            pck.getData(),
+                            0,
+                            pck.getLength()
+                    );
+
+                    if(msg.startsWith("BATTLE_MAFIFA_SERVER:")){
+                        String host = pck.getAddress().toString();
+                        int port = Integer.parseInt(msg.split(":")[1]);
+                        String entry = host + ":" + port;
+
+                        // Update JavaFX UI safely
+                        javafx.application.Platform.runLater(() -> {
+                                if(!serverList.getItems().contains(entry)) serverList.getItems().add(entry);
+                        });
+                    }
+
+                }
+
+            } catch (Exception e) {
+                Logger.get().error("FAILED TO START: " + Thread.currentThread().getName());
+            }
+        });
+        discoverThread.start();
     }
 
     private void createServer(){
@@ -328,34 +378,25 @@ public class MenuSection {
         }
     }
 
-    private void showLobby(boolean isHost) {
-        menuBox.getChildren().clear();
-        topleftContainer.setVisible(false);
+    private void updateLobbyUI(LobbyPacket lp) {
 
-        Label lobbyTitle = new Label("GAME LOBBY");
-        lobbyTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 30));
-        lobbyTitle.setTextFill(Color.web("#2ecc71"));
+        playerListArea.getChildren().clear();
 
-        statusLabel = new Label("Waiting for players...");
-        statusLabel.setTextFill(Color.GRAY);
+        for (String name : lp.getPlayerNames()) {
+            Label label = new Label(name);
+            label.setTextFill(Color.WHITE);
+            playerListArea.getChildren().add(label);
+        }
 
-        playerListArea = new VBox(10);
-        playerListArea.setAlignment(Pos.CENTER);
-        playerListArea.setPadding(new Insets(20));
-        playerListArea.setStyle("-fx-background-color: rgba(0,0,0,0.3); -fx-background-radius: 10;");
-
-        // This button only starts the game if min players are met
-        Button btnAction = createMenuButton(isHost ? "START MATCH" : "READY");
-        if (isHost) btnAction.setDisable(true);
-
-        Button btnLeave = createMenuButton("LEAVE");
-        btnLeave.setOnAction(e -> {
-            // Logic to disconnect client and return to main menu
-            resetToMainMenu();
-        });
-
-        menuBox.getChildren().addAll(lobbyTitle, statusLabel, playerListArea, btnAction, btnLeave);
+        if (lp.getPlayerNames().size() >= server.getMinPlayers()) {
+            statusLabel.setText("Ready to start!");
+            statusLabel.setTextFill(Color.web("#2ecc71"));
+        } else {
+            statusLabel.setText("Waiting for players...");
+            statusLabel.setTextFill(Color.GRAY);
+        }
     }
+
 
     private void resetToMainMenu(){
         menuBox.getChildren().clear();

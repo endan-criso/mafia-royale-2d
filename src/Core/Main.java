@@ -28,7 +28,7 @@ public class Main extends Application {
         MenuSection menu = new MenuSection(stage, getHostServices());
 
         //start sound
-        SoundManager.init();
+        //SoundManager.init();
         //SoundManager.playIntro();
 
         // Generate the map

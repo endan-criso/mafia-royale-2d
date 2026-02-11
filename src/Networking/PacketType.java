@@ -8,4 +8,5 @@ public enum PacketType {
     ATTACK_STATE,
     WORLD_STATE,
     METRICS, //latency
+    LOBBY_UPDATE
     }

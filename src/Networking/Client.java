@@ -5,6 +5,8 @@ import Logs.Logger;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.Socket;
 import Packet.StatePacket;
 import Packet.InputPacket;
@@ -18,6 +20,7 @@ public class Client {
     private ObjectInputStream in;
     private Socket socket;
     private boolean isRunning = false;
+
 
     // Connects to the server and initializes streams
     public void connect(String host, int port, String name)throws IOException{
@@ -85,8 +88,8 @@ public class Client {
     }
 
     public void stop(){
-        isRunning = false;
         try {
+            isRunning = false;
             socket.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
