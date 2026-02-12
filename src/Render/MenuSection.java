@@ -5,6 +5,7 @@ import Networking.Client;
 import Networking.Server;
 import Packet.LobbyPacket;
 import Player.Player;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -17,6 +18,8 @@ import javafx.stage.Stage;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Optional;
 
 public class MenuSection {
@@ -26,10 +29,12 @@ public class MenuSection {
     private int GAME_PORT = 9173;
     private Server server;
     private javafx.application.HostServices hostServices;
+    private final Map<String, Long> discoveredServers = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long TIMEOUT_MS = 5000; // 5 seconds
 
     //Thread checker
     private boolean serverThreadcheck = false;
-    private boolean discoveryRunning = false;
+    private volatile boolean discoveryRunning = false;
 
     //========== MENU ==========
     private StackPane container;
@@ -220,7 +225,7 @@ public class MenuSection {
         //START DISCOVERY HERE
         discoveryRunning = true;
         startCatchDiscoveryThread(serverList);
-
+        startServerCleanUp(serverList);
         Button btnConnect = createMenuButton("CONNECT");
         btnConnect.setDisable(true); // Disable until a server is picked
 
@@ -259,6 +264,7 @@ public class MenuSection {
 
     private void startCatchDiscoveryThread(ListView<String> serverList){
         Thread discoverThread = new Thread(() -> {
+            Logger.get().info("SUCCESSFULLY STARTED: " + Thread.currentThread().getName());
 
             try(DatagramSocket socket1 = new DatagramSocket(DISCOVERY_PORT)){
                 socket1.setBroadcast(true); // allow receiving broadcast
@@ -275,14 +281,15 @@ public class MenuSection {
                             pck.getLength()
                     );
 
-                    if(msg.startsWith("BATTLE_MAFIFA_SERVER:")){
-                        String host = pck.getAddress().toString();
+                    if(msg.startsWith("BATTLE_MAFIA_SERVER:")){
+                        String host = pck.getAddress().getHostAddress();
                         int port = Integer.parseInt(msg.split(":")[1]);
                         String entry = host + ":" + port;
 
-                        // Update JavaFX UI safely
+                        long currentTime = System.currentTimeMillis();
+                        discoveredServers.put(entry, currentTime);
                         javafx.application.Platform.runLater(() -> {
-                                if(!serverList.getItems().contains(entry)) serverList.getItems().add(entry);
+                            if(!serverList.getItems().contains(entry)) serverList.getItems().add(entry);
                         });
                     }
 
@@ -292,7 +299,41 @@ public class MenuSection {
                 Logger.get().error("FAILED TO START: " + Thread.currentThread().getName());
             }
         });
+        discoverThread.setDaemon(true);
+        discoverThread.setName("discoverThread");
         discoverThread.start();
+    }
+
+    private void startServerCleanUp(ListView<String> serverList){
+        Thread cleanUp = new Thread(() -> {
+            try {
+                Logger.get().info(Thread.currentThread().getName() + " has started");
+                while (discoveryRunning) {
+                    long current = System.currentTimeMillis();
+                    Iterator<Map.Entry<String, Long>> it = discoveredServers.entrySet().iterator();
+                    while(it.hasNext()){
+                        Map.Entry<String, Long> entry = it.next();
+                        if (current - entry.getValue() > TIMEOUT_MS) {
+                            String server = entry.getKey();
+                            it.remove();
+
+                            javafx.application.Platform.runLater(() -> {
+                                serverList.getItems().remove(server);
+                            });
+                        }
+                    }
+                    try{Thread.sleep(3000);}
+                    catch (InterruptedException e) {break;}
+                }
+            } catch (Exception e) {
+                Logger.get().error(Thread.currentThread().getName() + " Force stopped");
+            }
+        });
+        cleanUp.setDaemon(true);
+        cleanUp.setName("CLEAN_LISTING_SERVER");
+        cleanUp.start();
+
+        Logger.get().info(cleanUp.getName() + " has stopped");
     }
 
     private void createServer(){
