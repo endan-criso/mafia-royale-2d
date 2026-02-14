@@ -2,6 +2,8 @@ package Packet;
 
 import Networking.Packet;
 import Networking.PacketType;
+import Networking.ServerState;
+
 import java.util.List;
 import java.io.Serializable;
 
@@ -10,6 +12,7 @@ public class LobbyPacket implements Packet {
     public PacketType type; // Set this to "JOIN_REQUEST"
     public String singleName; // The name of the player joining
     public List<String> playerNames;
+    public ServerState state;
     // Tells the UI if the "Start" button should be clickable
     public int minRequired;
 
@@ -21,10 +24,11 @@ public class LobbyPacket implements Packet {
     }
 
     // For LOBBY updates from Server
-    public LobbyPacket(PacketType type, List<String> playerNames, int minRequired) {
+    public LobbyPacket(PacketType type, List<String> playerNames, int minRequired, ServerState state) {
         this.type = type;
         this.playerNames = playerNames;
         this.minRequired = minRequired;
+        this.state = state;
     }
 
     @Override

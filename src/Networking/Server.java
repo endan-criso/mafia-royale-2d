@@ -14,7 +14,9 @@
     import Player.Player;
 
     import java.util.List;
+    import java.util.concurrent.BlockingQueue;
     import java.util.concurrent.ConcurrentHashMap;
+    import java.util.concurrent.LinkedBlockingQueue;
     import java.util.concurrent.atomic.AtomicInteger;
 
     public class Server {
@@ -38,7 +40,6 @@
         private ServerSocket serverSocket;
         private final ConcurrentHashMap<Long, ClientHandler> clients = new ConcurrentHashMap<>();
         private final AtomicInteger nextPlayerID = new AtomicInteger(0);
-
         private final ConcurrentHashMap<Long, Player> players = new ConcurrentHashMap<>();
 
         public void start(int port) throws IOException {
@@ -115,7 +116,7 @@
                    while (clientsName)
                    {
                        List<String> names = players.values().stream().map(Player::getName).toList();
-                       LobbyPacket lp = new LobbyPacket(PacketType.LOBBY_UPDATE ,names, this.minPlayers);
+                       LobbyPacket lp = new LobbyPacket(PacketType.LOBBY_UPDATE ,names, this.minPlayers, this.state);
                        broadcast(lp);
                        Thread.sleep(1000);
                    }
@@ -225,11 +226,12 @@
         }
 
         class ClientHandler extends Thread {
-            ObjectInputStream in;
-            ObjectOutputStream out;
-            Long playerId;
+            private ObjectInputStream in;
+            private ObjectOutputStream out;
+            private Long playerId;
             private Socket socket;
             private boolean running;
+            private final BlockingQueue<Packet> outgoing;
 
             ClientHandler(Socket socket, Long id) throws IOException {
                 this.playerId = id;
@@ -237,15 +239,28 @@
                 out = new ObjectOutputStream(socket.getOutputStream());
                 in = new ObjectInputStream(socket.getInputStream());
                 running = true;
+                outgoing = new LinkedBlockingQueue<>(1024);
             }
 
             public void send(Packet p) {
+                if(running) outgoing.offer(p);
+            }
+
+            private void writerThread(){
                 try {
-                    out.writeObject(p);
-                    out.reset();
-                    out.flush();
+                    Logger.get().info("STARTED: " + Thread.currentThread().getName());
+                    while (running && !socket.isClosed())
+                    {
+                        Packet packet = outgoing.take();
+
+                        out.writeObject(packet);
+                        out.flush();
+                        out.reset();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 } catch (IOException e) {
-                    Logger.get().error("FAILED SEND PACKET TYPE");
+                    throw new RuntimeException(e);
                 }
             }
 
@@ -258,6 +273,9 @@
                         Player player = new Player(playerId, lobbyPacket.singleName);
                         players.put(playerId, player);
                         Logger.get().info("CLIENT RESPOND TO JOIN");
+                        Thread writer = new Thread(this::writerThread, "Writer-" + playerId);
+                        writer.setDaemon(true);
+                        writer.start();
                     }
                     else
                     {
@@ -266,7 +284,7 @@
                     }
 
 
-                    while (true) {
+                    while (running && !socket.isClosed()) {
                         Object obj = in.readObject();
 
                         if (obj instanceof MetricsPacket) {

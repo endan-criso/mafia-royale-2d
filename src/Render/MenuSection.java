@@ -464,7 +464,7 @@ public class MenuSection {
             drawLobby = true;
         }
 
-        ServerState state = server.getState();
+        ServerState state = lp.state;
         if(state == ServerState.LOBBY || state == ServerState.READY)
         {
             javafx.application.Platform.runLater(() -> {

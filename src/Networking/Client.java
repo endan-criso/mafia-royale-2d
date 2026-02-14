@@ -2,10 +2,14 @@ package Networking;
 
 import Logs.Logger;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 
 import Packet.StatePacket;
@@ -21,6 +25,7 @@ public class Client {
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private Socket socket;
+    private BlockingQueue<Packet> incoming;
     public boolean isRunning = false;
 
     //Menu Section
@@ -34,6 +39,7 @@ public class Client {
         // Output MUST be initialized before Input to avoid deadlock
         this.out = new ObjectOutputStream(socket.getOutputStream());
         this.in = new ObjectInputStream(socket.getInputStream());
+        incoming = new LinkedBlockingQueue<>(1024);
         this.isRunning = true;
 
         //Send Player name
@@ -72,12 +78,13 @@ public class Client {
                         handleLobby(lp);
                     }
                 }
-            } catch (Exception e) {
-                Logger.get().warn("Connection Lost in startReceiveThread");
-            }
-            finally {
+            } catch (SocketException | EOFException e) {
+                Logger.get().info("Server closed connection: " + e.getMessage());
                 stop();
-                Logger.get().warn("Client is Shutting Down: " + name);
+            } catch (Exception e) {
+                Logger.get().error("Receive error (not disconnect)");
+                stop();
+                throw new RuntimeException(e);
             }
         });
         receiveThread.setDaemon(true);
@@ -93,7 +100,9 @@ public class Client {
     public void handleLobby(LobbyPacket lobbyPacket){
         System.out.println("Received Lobby Update! Players: " + lobbyPacket.getPlayerNames().size());
         if(menuSection != null) {
-            menuSection.updateLobbyUI(lobbyPacket);
+            javafx.application.Platform.runLater(() -> {
+                menuSection.updateLobbyUI(lobbyPacket);
+            });
         }
     }
 
