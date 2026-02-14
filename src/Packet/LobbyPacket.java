@@ -9,31 +9,26 @@ import java.io.Serializable;
 
 public class LobbyPacket implements Packet {
     // List of names to display in the UI
-    public PacketType type; // Set this to "JOIN_REQUEST"
-    public String singleName; // The name of the player joining
+
     public List<String> playerNames;
     public ServerState state;
+    public Long host;
     // Tells the UI if the "Start" button should be clickable
     public int minRequired;
 
-    // For JOIN requests
-    public LobbyPacket(PacketType type, String singleName){
-        this.type = type;
-        this.singleName = singleName;
 
-    }
 
     // For LOBBY updates from Server
-    public LobbyPacket(PacketType type, List<String> playerNames, int minRequired, ServerState state) {
-        this.type = type;
+    public LobbyPacket(PacketType type, List<String> playerNames, int minRequired, ServerState state, Long host) {
         this.playerNames = playerNames;
         this.minRequired = minRequired;
         this.state = state;
+        this.host = host;
     }
 
     @Override
     public PacketType getType() {
-        return type;
+        return PacketType.LOBBY_UPDATE;
     }
 
     public List<String> getPlayerNames() {

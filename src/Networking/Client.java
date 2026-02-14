@@ -16,7 +16,8 @@ import Packet.StatePacket;
 import Packet.InputPacket;
 import Packet.MetricsPacket;
 import Packet.LobbyPacket;
-import Player.Player;
+import Packet.JoinPacket;
+import Packet.ClosingPacket;
 import Render.MenuSection;
 
 public class Client {
@@ -26,6 +27,7 @@ public class Client {
     private ObjectInputStream in;
     private Socket socket;
     private BlockingQueue<Packet> incoming;
+    private Long id;
     public boolean isRunning = false;
 
     //Menu Section
@@ -43,8 +45,8 @@ public class Client {
         this.isRunning = true;
 
         //Send Player name
-        LobbyPacket lp = new LobbyPacket(PacketType.JOIN, name);
-        out.writeObject(lp);
+        JoinPacket jp = new JoinPacket(PacketType.JOIN, name);
+        out.writeObject(jp);
         out.flush();
         Logger.get().info("CLIENT SEND THE JOIN REQUEST");
 
@@ -76,6 +78,13 @@ public class Client {
                     } else if(obj instanceof LobbyPacket){
                         LobbyPacket lp = (LobbyPacket) obj;
                         handleLobby(lp);
+                    } else if (obj instanceof JoinPacket jp) {
+                        if(jp.type == PacketType.REPLAY_JOIN)
+                        {
+                            this.id = jp.id;
+                            Logger.get().info("Assigned client ID = " + this.id);
+                            continue;
+                        }
                     }
                 }
             } catch (SocketException | EOFException e) {
@@ -98,12 +107,20 @@ public class Client {
     public void handleMetrics(MetricsPacket metricsPacket){return;}
 
     public void handleLobby(LobbyPacket lobbyPacket){
+
+
+
+
         System.out.println("Received Lobby Update! Players: " + lobbyPacket.getPlayerNames().size());
         if(menuSection != null) {
             javafx.application.Platform.runLater(() -> {
                 menuSection.updateLobbyUI(lobbyPacket);
             });
         }
+    }
+
+    public Long getId() {
+        return id;
     }
 
     private void startPingThread(){
@@ -123,15 +140,33 @@ public class Client {
     }
 
     public void stop(){
+
+        if(!isRunning) return;
+        isRunning = false;
+
+        send(new ClosingPacket(PacketType.DISCONNECT));
+
         try {
-            isRunning = false;
-            socket.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            if(socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+        } catch (Exception e) {}
+
+
+        //Handle the ui if server failed
+        if(menuSection != null)
+        {
+            javafx.application.Platform.runLater(() -> {
+                menuSection.onDisconnect();
+            });
         }
+
     }
 
     public void send(Packet packet){
+
+        if(!isRunning) return;
+
         try{
             out.writeObject(packet);
             out.reset();

@@ -10,7 +10,9 @@
     import Packet.InputPacket;
     import Packet.StatePacket;
     import Packet.MetricsPacket;
+    import Packet.JoinPacket;
     import Packet.LobbyPacket;
+    import Packet.ClosingPacket;
     import Player.Player;
 
     import java.util.List;
@@ -31,6 +33,9 @@
         private int minPlayers = 3;
         private int teamSize = 1;
 
+        //host
+        private Long host = null;
+
         //Thread
         private boolean running = false;
         private volatile boolean lobbyRunning = false;
@@ -48,10 +53,8 @@
             running = true;
             broadcastSearch = true;
             clientsName = true;
-            lobbyRunning = true;
+
             Logger.get().info("Server Initialized " + port);
-            sendClientsNameBroadcaster();
-            startDiscoveryBroadcast();
             new Thread(this::lobby).start();
 
             //ACCEPTS CLIENT
@@ -116,7 +119,7 @@
                    while (clientsName)
                    {
                        List<String> names = players.values().stream().map(Player::getName).toList();
-                       LobbyPacket lp = new LobbyPacket(PacketType.LOBBY_UPDATE ,names, this.minPlayers, this.state);
+                       LobbyPacket lp = new LobbyPacket(PacketType.LOBBY_UPDATE ,names, this.minPlayers, this.state, this.host);
                        broadcast(lp);
                        Thread.sleep(1000);
                    }
@@ -128,14 +131,6 @@
             sendClientsName.setName("Client Name Broadcaster");
             sendClientsName.setDaemon(true);
             sendClientsName.start();
-        }
-
-        public ServerState getState(){
-            return state;
-        }
-
-        public void setState(ServerState state) {
-            this.state = state;
         }
 
         private void lobby() {
@@ -268,11 +263,29 @@
                 try {
 
                     Object join = in.readObject();
-                    if (join instanceof LobbyPacket lobbyPacket && lobbyPacket.getType() == PacketType.JOIN)
-                    {
-                        Player player = new Player(playerId, lobbyPacket.singleName);
+                    if (join instanceof JoinPacket joinPacket && joinPacket.type == PacketType.JOIN) {
+                        Player player = new Player(playerId, joinPacket.singleName);
                         players.put(playerId, player);
+
+                        JoinPacket jp = new JoinPacket(PacketType.REPLAY_JOIN, playerId);
+                        send(jp);  // Send response packet
                         Logger.get().info("CLIENT RESPOND TO JOIN");
+
+                        //Set the host
+                        if (host == null) {
+                            host = playerId;
+                        }
+
+                        //start lobby
+                        if (!lobbyRunning)
+                        {
+                            lobbyRunning = true;
+                            sendClientsNameBroadcaster();
+                            startDiscoveryBroadcast();
+                            new Thread(Server.this::lobby, "LOBBY").start();
+
+                        }
+
                         Thread writer = new Thread(this::writerThread, "Writer-" + playerId);
                         writer.setDaemon(true);
                         writer.start();
@@ -308,6 +321,15 @@
                                 if (ip.right) player.setVx(player.getVx() + speed);
                             }
                         }
+
+                        if(obj instanceof ClosingPacket cp)
+                        {
+                            if(cp.type == PacketType.DISCONNECT)
+                            {
+                                shutdown();
+                            }
+                        }
+
                     }
                 } catch (Exception e) {
                     Logger.get().warn("Player " + playerId + " disconnected");

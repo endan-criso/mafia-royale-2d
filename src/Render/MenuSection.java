@@ -49,6 +49,9 @@ public class MenuSection {
     private Stage stage;
     private boolean drawLobby = false; //Lobby running
 
+    //Player
+    private Long host = null;
+
     //Lobby Method
     ListView<String> lobbyList;
     Button btnStart;
@@ -428,6 +431,11 @@ public class MenuSection {
 
     public void updateLobbyUI(LobbyPacket lp) {
 
+        if (client == null || client.getId() == null) {
+            return;
+        }
+
+
         if(!drawLobby)
         {
             menuBox.getChildren().clear();
@@ -442,9 +450,16 @@ public class MenuSection {
 
             btnStart = createMenuButton("START");
             Button btnBack = createMenuButton("BACK");
-            btnStart.setDisable(true); // Disable until a minPlayers reached
+
+            if(host == null)
+            {
+                this.host = lp.host;
+            }
+
+            boolean isHost = client != null && client.getId() != null && client.getId().equals(lp.host);
+            btnStart.setVisible(isHost);
             btnStart.setOnAction(e -> {
-                server.setState(ServerState.STARTING);
+
             });
             btnBack.setOnAction(e -> {
                 drawLobby = false;
@@ -477,12 +492,19 @@ public class MenuSection {
 
     }
 
+    public void onDisconnect(){
+        drawLobby = false;
+        if(!client.getId().equals(host)) showErrorDialog("Match Closed", "Host left the match.");
+        resetToMainMenu();
+    }
 
     private void resetToMainMenu(){
         menuBox.getChildren().clear();
         topleftContainer.setVisible(true);
         showMainMenu();
     }
+
+
 
     public Pane getRoot() {
         return container;

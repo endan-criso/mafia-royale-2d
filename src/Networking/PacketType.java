@@ -1,7 +1,10 @@
 package Networking;
 
-public enum PacketType {
+import java.io.Serializable;
+
+public enum PacketType implements Serializable {
     JOIN,
+    REPLAY_JOIN,
     DISCONNECT,
     INPUT,  //WASD
     PLAYER_STATE, //X, Y
