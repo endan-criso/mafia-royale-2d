@@ -3,6 +3,7 @@ package Render;
 import Logs.Logger;
 import Networking.Client;
 import Networking.Server;
+import Networking.ServerState;
 import Packet.LobbyPacket;
 import Player.Player;
 import javafx.application.Platform;
@@ -28,6 +29,7 @@ public class MenuSection {
     private final int DISCOVERY_PORT = 8888;
     private int GAME_PORT = 9173;
     private Server server;
+    private Client client;
     private javafx.application.HostServices hostServices;
     private final Map<String, Long> discoveredServers = new java.util.concurrent.ConcurrentHashMap<>();
     private static final long TIMEOUT_MS = 5000; // 5 seconds
@@ -45,6 +47,11 @@ public class MenuSection {
     private Label statusLabel;
     private Label nameDisplay;// Default name
     private Stage stage;
+    private boolean drawLobby = false; //Lobby running
+
+    //Lobby Method
+    ListView<String> lobbyList;
+    Button btnStart;
 
     public MenuSection(Stage stage, javafx.application.HostServices hostServices) {
         this.stage = stage;
@@ -241,11 +248,11 @@ public class MenuSection {
                 GAME_PORT = Integer.parseInt(parts[1]);
                 // TRIGGER CLIENT LOGIC HERE
                 try{
-                    Client client = new Client();
+                    client = new Client();
                     client.connect(host, GAME_PORT, playerName);
                     // Hide menu and show game
                     discoveryRunning = false;
-                    this.container.setVisible(false);
+                    client.setMenu(this);
                 } catch (IOException ex) {
                     Logger.get().error("Failed to create a client");
                     showErrorDialog("Connection Failed", "Could not connect to server: " + ex.getMessage());
@@ -332,8 +339,6 @@ public class MenuSection {
         cleanUp.setDaemon(true);
         cleanUp.setName("CLEAN_LISTING_SERVER");
         cleanUp.start();
-
-        Logger.get().info(cleanUp.getName() + " has stopped");
     }
 
     private void createServer(){
@@ -408,10 +413,12 @@ public class MenuSection {
 
     }
 
+
     private void joinLocalServer(){
         try{
-            Client client = new Client();
+            client = new Client();
             client.connect("127.0.0.1", GAME_PORT, playerName);
+            client.setMenu(this);
             Logger.get().info("SERVER USER SELF JOIN");
         } catch (Exception e) {
             Logger.get().warn("FAILED TO CONNECT THE SERVER AND HOST TOGETHER");
@@ -419,23 +426,55 @@ public class MenuSection {
         }
     }
 
-    private void updateLobbyUI(LobbyPacket lp) {
+    public void updateLobbyUI(LobbyPacket lp) {
 
-        playerListArea.getChildren().clear();
+        if(!drawLobby)
+        {
+            menuBox.getChildren().clear();
 
-        for (String name : lp.getPlayerNames()) {
-            Label label = new Label(name);
-            label.setTextFill(Color.WHITE);
-            playerListArea.getChildren().add(label);
+            Label browserTitle = new Label("LOBBY: Waiting for players...");
+            browserTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 30));
+            browserTitle.setTextFill(Color.WHITE);
+
+            lobbyList = new ListView<>();
+            lobbyList.setMaxWidth(300);
+            lobbyList.setMaxHeight(200);
+
+            btnStart = createMenuButton("START");
+            Button btnBack = createMenuButton("BACK");
+            btnStart.setDisable(true); // Disable until a minPlayers reached
+            btnStart.setOnAction(e -> {
+                server.setState(ServerState.STARTING);
+            });
+            btnBack.setOnAction(e -> {
+                drawLobby = false;
+                if(server != null)
+                {
+                    serverThreadcheck = false;
+                    server.closeServer();
+                }
+                if(client != null)
+                {
+                    client.stop();
+                }
+                showStartOptions();
+            });
+
+            menuBox.getChildren().addAll(browserTitle, lobbyList, btnStart, btnBack);
+            drawLobby = true;
         }
 
-        if (lp.getPlayerNames().size() >= server.getMinPlayers()) {
-            statusLabel.setText("Ready to start!");
-            statusLabel.setTextFill(Color.web("#2ecc71"));
-        } else {
-            statusLabel.setText("Waiting for players...");
-            statusLabel.setTextFill(Color.GRAY);
+        ServerState state = server.getState();
+        if(state == ServerState.LOBBY || state == ServerState.READY)
+        {
+            javafx.application.Platform.runLater(() -> {
+                lobbyList.getItems().setAll(lp.getPlayerNames());
+                if (btnStart != null && server != null) {
+                    btnStart.setDisable(lp.getPlayerNames().size() < lp.minRequired);
+                }
+            });
         }
+
     }
 
 

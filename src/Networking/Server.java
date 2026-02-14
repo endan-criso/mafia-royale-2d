@@ -13,7 +13,6 @@
     import Packet.LobbyPacket;
     import Player.Player;
 
-    import java.util.Collection;
     import java.util.List;
     import java.util.concurrent.ConcurrentHashMap;
     import java.util.concurrent.atomic.AtomicInteger;
@@ -34,6 +33,7 @@
         private boolean running = false;
         private volatile boolean lobbyRunning = false;
         private volatile boolean broadcastSearch = false;
+        private volatile boolean clientsName = false;
 
         private ServerSocket serverSocket;
         private final ConcurrentHashMap<Long, ClientHandler> clients = new ConcurrentHashMap<>();
@@ -46,7 +46,10 @@
             serverSocket = new ServerSocket(port);
             running = true;
             broadcastSearch = true;
+            clientsName = true;
+            lobbyRunning = true;
             Logger.get().info("Server Initialized " + port);
+            sendClientsNameBroadcaster();
             startDiscoveryBroadcast();
             new Thread(this::lobby).start();
 
@@ -59,12 +62,10 @@
                     continue;
                 }
 
-
                 long id = nextPlayerID.getAndIncrement();
 
-                ClientHandler handler = new ClientHandler(socket, id);
+                ClientHandler handler = new ClientHandler(socket, id); //Add the players here
                 clients.put(id, handler);
-                players.put(id, new Player(1, "test"));
                 handler.start();
                 Logger.get().info("Player " + id + " connected");
                 Logger.get().info("ClientHandler Thread: " + handler.getState());
@@ -79,7 +80,7 @@
 
                     while (broadcastSearch)
                     {
-                        String msg = "BATTLE_MAFIFA_SERVER:" + GAME_PORT;
+                        String msg = "BATTLE_MAFIA_SERVER:" + GAME_PORT;
                         byte[] data = msg.getBytes();
 
                         DatagramPacket packet = new DatagramPacket(
@@ -101,24 +102,39 @@
             broadcastDiscovery.start();
         }
 
-        private void broadcastUpdate(Packet p) {
-            List<String> names = players.values()
-                    .stream().map(Player::getName).toList();
-
-            LobbyPacket lp = new LobbyPacket(names, this.minPlayers);
-            broadcast(lp);
-        }
-
         private void broadcast(Packet p) {
-            Logger.get().info("Broadcasting: packets");
 
             for (ClientHandler c : clients.values()) {
-                c.send(p);
+                if(c != null && c.isAlive()) c.send(p);
             }
         }
 
-        public int getMinPlayers() {
-            return minPlayers;
+        private void sendClientsNameBroadcaster(){
+            Thread sendClientsName = new Thread(() -> {
+               try{
+                   while (clientsName)
+                   {
+                       List<String> names = players.values().stream().map(Player::getName).toList();
+                       LobbyPacket lp = new LobbyPacket(PacketType.LOBBY_UPDATE ,names, this.minPlayers);
+                       broadcast(lp);
+                       Thread.sleep(1000);
+                   }
+               }catch (Exception e)
+               {
+                   Logger.get().error(Thread.currentThread().getName()+ " is forced stopped");
+               }
+            });
+            sendClientsName.setName("Client Name Broadcaster");
+            sendClientsName.setDaemon(true);
+            sendClientsName.start();
+        }
+
+        public ServerState getState(){
+            return state;
+        }
+
+        public void setState(ServerState state) {
+            this.state = state;
         }
 
         private void lobby() {
@@ -159,6 +175,7 @@
                 Logger.get().warn(Thread.currentThread().getName() + " started successfully");
                 lobbyRunning = false;
                 broadcastSearch = false;
+                clientsName = false;
                 stopClientAccepting();
                 while (true) {
                     Thread.sleep(50); // ~20 ticks per second
@@ -172,6 +189,7 @@
                             sp.playerId = (int) p.getId();
                             sp.x = p.getX();
                             sp.y = p.getY();
+                            Logger.get().info("Broadcasting: packets");
                             broadcast(sp);
                             p.markPosition();
                         }
@@ -218,6 +236,7 @@
                 this.socket = socket;
                 out = new ObjectOutputStream(socket.getOutputStream());
                 in = new ObjectInputStream(socket.getInputStream());
+                running = true;
             }
 
             public void send(Packet p) {
@@ -232,14 +251,29 @@
 
             public void run() {
                 try {
+
+                    Object join = in.readObject();
+                    if (join instanceof LobbyPacket lobbyPacket && lobbyPacket.getType() == PacketType.JOIN)
+                    {
+                        Player player = new Player(playerId, lobbyPacket.singleName);
+                        players.put(playerId, player);
+                        Logger.get().info("CLIENT RESPOND TO JOIN");
+                    }
+                    else
+                    {
+                        shutdown();
+                        return;
+                    }
+
+
                     while (true) {
-                        Object obj = (Packet) in.readObject();
+                        Object obj = in.readObject();
 
                         if (obj instanceof MetricsPacket) {
                             MetricsPacket mp = (MetricsPacket) obj;
                             if (mp.ping) {
-                                mp.pong = false;
-                                mp.ping = true;
+                                mp.pong = true;
+                                mp.ping = false;
                             }
                             send(mp);
                         }

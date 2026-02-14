@@ -5,13 +5,15 @@ import Logs.Logger;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.Socket;
+
+
 import Packet.StatePacket;
 import Packet.InputPacket;
 import Packet.MetricsPacket;
+import Packet.LobbyPacket;
 import Player.Player;
+import Render.MenuSection;
 
 public class Client {
 
@@ -19,7 +21,10 @@ public class Client {
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private Socket socket;
-    private boolean isRunning = false;
+    public boolean isRunning = false;
+
+    //Menu Section
+    private MenuSection menuSection;
 
 
     // Connects to the server and initializes streams
@@ -31,8 +36,19 @@ public class Client {
         this.in = new ObjectInputStream(socket.getInputStream());
         this.isRunning = true;
 
+        //Send Player name
+        LobbyPacket lp = new LobbyPacket(PacketType.JOIN, name);
+        out.writeObject(lp);
+        out.flush();
+        Logger.get().info("CLIENT SEND THE JOIN REQUEST");
+
         startPingThread();
         startReceiveThread();
+    }
+
+    public void setMenu(MenuSection menuSection)
+    {
+        this.menuSection = menuSection;
     }
 
     private void startReceiveThread(){
@@ -51,6 +67,9 @@ public class Client {
                     } else if (obj instanceof MetricsPacket) {
                         MetricsPacket mp = (MetricsPacket) obj;
                         handleMetrics(mp);
+                    } else if(obj instanceof LobbyPacket){
+                        LobbyPacket lp = (LobbyPacket) obj;
+                        handleLobby(lp);
                     }
                 }
             } catch (Exception e) {
@@ -70,6 +89,13 @@ public class Client {
     public void handleInput(InputPacket inputPacket){return;}
 
     public void handleMetrics(MetricsPacket metricsPacket){return;}
+
+    public void handleLobby(LobbyPacket lobbyPacket){
+        System.out.println("Received Lobby Update! Players: " + lobbyPacket.getPlayerNames().size());
+        if(menuSection != null) {
+            menuSection.updateLobbyUI(lobbyPacket);
+        }
+    }
 
     private void startPingThread(){
         Thread pingThread = new Thread(() -> {
